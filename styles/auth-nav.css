@@ -1,0 +1,11 @@
+#auth-link {
+    color: #fff;
+    font-size: 1.4rem;
+    margin-left: 1rem;
+    transition: color 0.3s ease;
+    text-transform: uppercase;
+}
+
+#auth-link:hover {
+    color: #ff6b6b;
+}

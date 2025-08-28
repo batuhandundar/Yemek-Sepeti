@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ödeme - Yemek Sepeti</title>
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .checkout-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .checkout-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .checkout-header h2 {
+            color: #333;
+            font-size: 1.8rem;
+            margin: 0;
+        }
+
+        .order-summary {
+            margin-bottom: 2rem;
+        }
+
+        .order-items {
+            margin-bottom: 1rem;
+        }
+
+        .order-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .order-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-right: 1rem;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .item-price {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .item-quantity {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .quantity-btn {
+            background: #f0f0f0;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #333;
+        }
+
+        .order-total {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .total-label {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .total-amount {
+            font-weight: bold;
+            color: #ff4b4b;
+            font-size: 1.2rem;
+        }
+
+        .delivery-form {
+            margin-top: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #ff4b4b;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255,75,75,0.1);
+        }
+
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .payment-methods {
+            margin: 2rem 0;
+        }
+
+        .payment-method {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .payment-method:hover {
+            border-color: #ff4b4b;
+            background: rgba(255,75,75,0.05);
+        }
+
+        .payment-method.selected {
+            border-color: #ff4b4b;
+            background: rgba(255,75,75,0.05);
+        }
+
+        .payment-method input[type="radio"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .payment-method-info {
+            flex: 1;
+        }
+
+        .payment-method-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .payment-method-description {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .checkout-button {
+            width: 100%;
+            padding: 1rem;
+            background: #ff4b4b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .checkout-button:hover {
+            background: #ff3333;
+        }
+
+        .checkout-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            .checkout-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-container">
+        <div class="checkout-header">
+            <h2>Sipariş Özeti</h2>
+        </div>
+
+        <div class="order-summary">
+            <div class="order-items" id="orderItems">
+                <!-- Sepet öğeleri buraya gelecek -->
+            </div>
+
+            <div class="order-total">
+                <span class="total-label">Toplam Tutar:</span>
+                <span class="total-amount" id="totalAmount">₺0.00</span>
+            </div>
+        </div>
+
+        <div class="delivery-form">
+            <div class="form-group">
+                <label for="address">Teslimat Adresi</label>
+                <textarea id="address" required placeholder="Detaylı adres bilgisi giriniz"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Telefon Numarası</label>
+                <input type="tel" id="phone" required placeholder="05XX XXX XX XX">
+            </div>
+
+            <div class="form-group">
+                <label for="note">Sipariş Notu (Opsiyonel)</label>
+                <textarea id="note" placeholder="Varsa özel isteklerinizi belirtiniz"></textarea>
+            </div>
+        </div>
+
+        <div class="payment-methods">
+            <div class="payment-method selected">
+                <input type="radio" name="payment" value="cash" checked>
+                <div class="payment-method-info">
+                    <div class="payment-method-name">Kapıda Ödeme</div>
+                    <div class="payment-method-description">Siparişinizi teslim aldığınızda ödeme yapın</div>
+                </div>
+            </div>
+
+            <div class="payment-method">
+                <input type="radio" name="payment" value="credit">
+                <div class="payment-method-info">
+                    <div class="payment-method-name">Kredi Kartı</div>
+                    <div class="payment-method-description">Güvenli ödeme ile şimdi ödeyin</div>
+                </div>
+            </div>
+        </div>
+
+        <button id="checkoutButton" class="checkout-button">
+            Siparişi Tamamla
+        </button>
+    </div>
+
+    <script>
+        // Supabase bağlantısı
+        const SUPABASE_URL = 'https://rwobzqpedtphuxvkzkbq.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3b2J6cXBlZHRwaHV4dmt6a2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4MDU3MjYsImV4cCI6MjA2OTM4MTcyNn0.ga3lHSx8ufgCtXcpC7cuQZ4PcJurUhXdPNh3gKFNj0U';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Oturum kontrolü
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // Sepetteki ürünleri göster
+                const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+                console.log('Checkout cart:', cart); // Debug
+                
+                // Sepet boşsa ana sayfaya yönlendir
+                if (cart.length === 0) {
+                    alert(' Önce ürün ekleyin.');
+                    window.location.href = 'index.html';
+                    return;
+                }
+                
+                const orderItems = document.getElementById('orderItems');
+                const totalAmount = document.getElementById('totalAmount');
+                
+                let total = 0;
+                orderItems.innerHTML = cart.map(item => {
+                    total += item.price * item.quantity;
+                    return `
+                        <div class="order-item">
+                            <img src="${item.image_url}" alt="${item.name}">
+                            <div class="item-details">
+                                <div class="item-name">${item.name}</div>
+                                <div class="item-price">₺${item.price} x ${item.quantity}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                totalAmount.textContent = `₺${total.toFixed(2)}`;
+
+                // Profil bilgilerini getir
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('phone, address')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profile) {
+                    document.getElementById('phone').value = profile.phone || '';
+                    document.getElementById('address').value = profile.address || '';
+                }
+
+                // Ödeme yöntemi seçimi
+                document.querySelectorAll('.payment-method').forEach(method => {
+                    method.addEventListener('click', () => {
+                        document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+                        method.classList.add('selected');
+                        method.querySelector('input[type="radio"]').checked = true;
+                    });
+                });
+
+                // Siparişi tamamla
+                document.getElementById('checkoutButton').addEventListener('click', async () => {
+                    try {
+                        const address = document.getElementById('address').value;
+                        const phone = document.getElementById('phone').value;
+                        const note = document.getElementById('note').value;
+                        const paymentMethod = document.querySelector('input[name="payment"]:checked').value;
+
+                        if (!address || !phone) {
+                            alert('Lütfen adres ve telefon bilgilerini doldurun');
+                            return;
+                        }
+
+                        // Siparişi oluştur
+                        console.log('kullanıcı iöin siparis olusturuluyor:', session.user.id);
+                        const { data: order, error: orderError } = await supabase
+                            .from('orders')
+                            .insert({
+                                user_id: session.user.id,
+                                status: 'pending',
+                                total_amount: total,
+                                delivery_address: address,
+                                payment_method: paymentMethod,
+                                note: note
+                            })
+                            .select()
+                            .single();
+
+                        if (orderError) {
+                            console.error('siparis hatası:', orderError);
+                            throw orderError;
+                        }
+                        
+                        console.log('sipariis olusturuldu:', order);
+
+                        // Sipariş detaylarını ekle
+                        const orderItems = cart.map(item => ({
+                            order_id: order.id,
+                            product_id: item.id,
+                            quantity: item.quantity,
+                            unit_price: item.price,
+                            total_price: item.price * item.quantity
+                        }));
+
+                        console.log('ürünler ekleniyor:', orderItems);
+                        const { error: itemsError } = await supabase
+                            .from('order_items')
+                            .insert(orderItems);
+
+                        if (itemsError) {
+                            console.error('ürünler hatası:', itemsError);
+                            throw itemsError;
+                        }
+                        
+                        console.log('ürün basarilyla eklendi');
+
+                        // Profil bilgilerini güncelle
+                        await supabase
+                            .from('profiles')
+                            .update({
+                                phone: phone,
+                                address: address,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', session.user.id);
+
+                        // Sepeti temizle
+                        localStorage.removeItem('cart');
+                        
+                        // Başarı mesajı
+                        alert(`Siparişiniz başarıyla oluşturuldu!\nSipariş No: ${order.id.slice(-8)}\nToplam: ₺${total.toFixed(2)}\nTahmini teslimat: 30-45 dakika`);
+                        
+                        // Siparişler sayfasına yönlendir
+                        if (confirm('Siparişinizi takip etmek ister misiniz?')) {
+                            window.location.href = 'orders.html';
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+
+                    } catch (error) {
+                        console.error('Sipariş oluşturma hatası:', error);
+                        alert('Sipariş oluşturulurken bir hata oluştu');
+                    }
+                });
+
+            } catch (error) {
+                console.error('Sayfa yükleme hatası:', error);
+                alert('Bilgiler yüklenirken bir hata oluştu');
+            }
+        });
+    </script>
+</body>
+</html>

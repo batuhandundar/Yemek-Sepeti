@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siparişlerim - Yemek Sepeti</title>
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .orders-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .orders-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .orders-header h2 {
+            color: #333;
+            font-size: 2rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .orders-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .order-card {
+            border: 2px solid #f0f0f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .order-card:hover {
+            border-color: var(--main-color);
+            box-shadow: 0 4px 15px rgba(255, 75, 75, 0.1);
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .order-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .order-id {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .order-date {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .order-status {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-confirmed {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #74b816;
+        }
+
+        .status-preparing {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #0084ff;
+        }
+
+        .status-on-the-way {
+            background: #e7f3ff;
+            color: #0066cc;
+            border: 1px solid #0099ff;
+        }
+
+        .status-delivered {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #17a2b8;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #28a745;
+        }
+
+        .status-cancelled {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+        }
+
+        .order-items {
+            margin: 1rem 0;
+        }
+
+        .order-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.8rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-item img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 0.2rem;
+        }
+
+        .item-quantity {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .item-price {
+            font-weight: 600;
+            color: var(--main-color);
+        }
+
+        .order-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .order-total {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--main-color);
+        }
+
+        .order-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-track {
+            background: var(--main-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-track:hover {
+            background: #ff3333;
+            transform: scale(1.05);
+        }
+
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+
+        .empty-orders {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-orders i {
+            font-size: 4rem;
+            color: #ddd;
+            margin-bottom: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .progress-bar {
+            margin: 1rem 0;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 8px;
+            background: linear-gradient(90deg, var(--main-color), #ff6b35);
+            transition: width 0.3s ease;
+        }
+
+        .delivery-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .delivery-info h4 {
+            margin: 0 0 0.5rem 0;
+            color: #333;
+        }
+
+        .delivery-address {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .delivery-time {
+            color: var(--main-color);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .orders-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+
+            .order-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .order-item {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .order-footer {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header (navigation) -->
+    <header class="header">
+        <a href="index.html" class="logo">
+            <img src="images/logo.png" alt="Yemek Sepeti">
+        </a>
+        
+        <nav class="navbar">
+            <a href="index.html">Ana Sayfa</a>
+            <a href="about.html">Hakkımızda</a>
+            <a href="menu.html">Menü</a>
+            <a href="products.html">Ürünler</a>
+            <a href="review.html">Yorumlar</a>
+            <a href="contact.html">İletişim</a>
+            <a href="blogs.html">Blog</a>
+        </nav>
+
+        <div class="buttons">
+            <button id="search-btn" class="fas fa-search"></button>
+            <button id="cart-btn" class="fas fa-shopping-cart"></button>
+            <button id="login-btn" style="display: none;">Giriş</button>
+            <button id="profile-btn" style="display: none;">Profil</button>
+            <button id="logout-btn" style="display: none;">Çıkış</button>
+        </div>
+    </header>
+
+    <div class="orders-container">
+        <div class="orders-header">
+            <h2><i class="fas fa-receipt"></i> Siparişlerim</h2>
+        </div>
+
+        <div id="loading" class="loading">
+            <i class="fas fa-spinner fa-spin"></i> Siparişler yükleniyor...
+        </div>
+
+        <div id="orders-list" class="orders-list" style="display: none;">
+            <!-- Siparişler buraya gelecek -->
+        </div>
+
+        <div id="empty-orders" class="empty-orders" style="display: none;">
+            <i class="fas fa-shopping-bag"></i>
+            <h3>Henüz hiç siparişiniz yok</h3>
+            <p>İlk siparişinizi vermek için menümüze göz atın!</p>
+            <a href="index.html" class="btn">Sipariş Ver</a>
+        </div>
+    </div>
+
+    <script>
+        // Supabase bağlantısı
+        const SUPABASE_URL = 'https://rwobzqpedtphuxvkzkbq.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3b2J6cXBlZHRwaHV4dmt6a2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4MDU3MjYsImV4cCI6MjA2OTM4MTcyNn0.ga3lHSx8ufgCtXcpC7cuQZ4PcJurUhXdPNh3gKFNj0U';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Sipariş durumu metinleri
+        const statusTexts = {
+            'pending': 'Beklemede',
+            'confirmed': 'Onaylandı', 
+            'preparing': 'Hazırlanıyor',
+            'on_the_way': 'Yolda',
+            'delivered': 'Teslim Edildi',
+            'cancelled': 'İptal Edildi',
+            'completed': 'Tamamlandı'
+        };
+
+        // Sipariş durumu progress yüzdeleri
+        const statusProgress = {
+            'pending': 20,
+            'confirmed': 40,
+            'preparing': 60,
+            'on_the_way': 80,
+            'delivered': 100,
+            'completed': 100,
+            'cancelled': 0
+        };
+
+        // Tahmini teslimat süreleri (dakika)
+        const estimatedTimes = {
+            'pending': 45,
+            'confirmed': 40,
+            'preparing': 30,
+            'on_the_way': 15,
+            'delivered': 0,
+            'completed': 0,
+            'cancelled': 0
+        };
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Oturum kontrolü
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                await loadOrders(session.user.id);
+
+                // Header butonları
+                setupHeaderButtons();
+
+            } catch (error) {
+                console.error('Sayfa yükleme hatası:', error);
+                document.getElementById('loading').innerHTML = '<p>Bilgiler yüklenirken bir hata oluştu</p>';
+            }
+        });
+
+        // Siparişleri yükle
+        async function loadOrders(userId) {
+            try {
+                const { data: orders, error } = await supabase
+                    .from('orders')
+                    .select(`
+                        *,
+                        order_items (
+                            *,
+                            products (
+                                name,
+                                image_url
+                            )
+                        )
+                    `)
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                document.getElementById('loading').style.display = 'none';
+
+                if (orders.length === 0) {
+                    document.getElementById('empty-orders').style.display = 'block';
+                } else {
+                    document.getElementById('orders-list').style.display = 'block';
+                    renderOrders(orders);
+                }
+
+            } catch (error) {
+                console.error('Sipariş yükleme hatası:', error);
+                document.getElementById('loading').innerHTML = '<p>Siparişler yüklenirken bir hata oluştu</p>';
+            }
+        }
+
+        // Siparişleri render et
+        function renderOrders(orders) {
+            const container = document.getElementById('orders-list');
+            
+            container.innerHTML = orders.map(order => {
+                const orderDate = new Date(order.created_at).toLocaleDateString('tr-TR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                const statusClass = `status-${order.status.replace('_', '-')}`;
+                const statusText = statusTexts[order.status] || order.status;
+                const progress = statusProgress[order.status] || 0;
+                const estimatedTime = estimatedTimes[order.status] || 0;
+
+                const orderItems = order.order_items.map(item => `
+                    <div class="order-item">
+                        <img src="${item.products.image_url}" alt="${item.products.name}">
+                        <div class="item-details">
+                            <div class="item-name">${item.products.name}</div>
+                            <div class="item-quantity">${item.quantity} adet</div>
+                        </div>
+                        <div class="item-price">₺${(item.total_price).toFixed(2)}</div>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div class="order-info">
+                                <div class="order-id">Sipariş #${order.id.slice(-8)}</div>
+                                <div class="order-date">${orderDate}</div>
+                            </div>
+                            <div class="order-status ${statusClass}">${statusText}</div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+
+                        <div class="order-items">
+                            ${orderItems}
+                        </div>
+
+                        <div class="delivery-info">
+                            <h4><i class="fas fa-map-marker-alt"></i> Teslimat Bilgileri</h4>
+                            <div class="delivery-address">${order.delivery_address}</div>
+                            ${estimatedTime > 0 ? `<div class="delivery-time"><i class="fas fa-clock"></i> Tahmini ${estimatedTime} dakika</div>` : ''}
+                        </div>
+
+                        <div class="order-footer">
+                            <div class="order-total">Toplam: ₺${order.total_amount.toFixed(2)}</div>
+                            <div class="order-actions">
+                                ${order.status === 'pending' ? '<button class="btn-cancel" onclick="cancelOrder(\'' + order.id + '\')">İptal Et</button>' : ''}
+                                <button class="btn-track" onclick="trackOrder('${order.id}')">Detay</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Siparişi iptal et
+        async function cancelOrder(orderId) {
+            if (!confirm('Siparişi iptal etmek istediğinizden emin misiniz?')) {
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('orders')
+                    .update({ status: 'cancelled' })
+                    .eq('id', orderId);
+
+                if (error) throw error;
+
+                alert('Sipariş başarıyla iptal edildi');
+                location.reload();
+
+            } catch (error) {
+                console.error('Sipariş iptal hatası:', error);
+                alert('Sipariş iptal edilirken bir hata oluştu');
+            }
+        }
+
+        // Sipariş detayını göster
+        function trackOrder(orderId) {
+            alert(`Sipariş #${orderId.slice(-8)} detayları:\n\nDurumu güncel olarak görüntülenmektedir.\nKurye bilgileri ve teslimat detayları yakında eklenecek!`);
+            // Gelecekte detaylı takip sayfası eklenebilir
+        }
+
+        // Header butonları ayarla
+        function setupHeaderButtons() {
+            document.getElementById('login-btn').addEventListener('click', () => {
+                window.location.href = 'login.html';
+            });
+
+            document.getElementById('profile-btn').addEventListener('click', () => {
+                window.location.href = 'profile.html';
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', async () => {
+                await supabase.auth.signOut();
+                window.location.href = 'index.html';
+            });
+
+            // Auth durumunu kontrol et
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    document.getElementById('login-btn').style.display = 'none';
+                    document.getElementById('profile-btn').style.display = 'inline-block';
+                    document.getElementById('logout-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('login-btn').style.display = 'inline-block';
+                    document.getElementById('profile-btn').style.display = 'none';
+                    document.getElementById('logout-btn').style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

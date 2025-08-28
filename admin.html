@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Yemek Sepeti</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Supabase CDN yüklendikten sonra global object'i kaydet
+        window.supabaseJs = window.supabase;
+        delete window.supabase; // Çakışmayı önle
+    </script>
+    <script src="js/supabase.js"></script>
+    <script>
+        // Admin koruma - otomatik admin kontrolü  
+        setTimeout(async function() {
+            try {
+                console.log('Admin kontrolü başlatılıyor...');
+                
+                // Supabase yüklenene kadar bekle
+                let attempts = 0;
+                while (!window.supabase && attempts < 100) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    attempts++;
+                }
+                
+                console.log('Supabase bekleme tamamlandı, attempts:', attempts);
+
+                if (window.supabase) {
+                    console.log('Supabase yüklendi, oturum kontrol ediliyor...');
+                    
+                    // Giriş yapmış kullanıcı var mı kontrol et
+                    const { data: { session }, error } = await window.supabase.auth.getSession();
+                    console.log('Oturum durumu:', session ? 'Var' : 'Yok', error);
+                    
+                    if (session) {
+                        console.log('Kullanıcı ID:', session.user.id);
+                        console.log('Kullanıcı email:', session.user.email);
+                        
+                        // Kullanıcının admin olup olmadığını kontrol et
+                        const { data: profile, error: profileError } = await window.supabase
+                            .from('profiles')
+                            .select('is_admin')
+                            .eq('id', session.user.id)
+                            .single();
+
+                        console.log('Profile sorgusu:', profile, profileError);
+
+                        if (profile && profile.is_admin) {
+                            console.log('Admin kullanıcı tespit edildi - otomatik erişim veriliyor');
+                            localStorage.setItem('isAdmin', 'true');
+                            return; // Admin paneli yüklenmeye devam et
+                        } else {
+                            console.log('Kullanıcı admin değil veya profile bulunamadı');
+                        }
+                    } else {
+                        console.log('Oturum bulunamadı');
+                    }
+                } else {
+                    console.log('Supabase yüklenemedi');
+                }
+
+                // Admin değilse veya giriş yapmamışsa şifre iste
+                const isAdmin = localStorage.getItem('isAdmin');
+                if (!isAdmin) {
+                    const password = prompt('Admin şifresi gerekli:');
+                    if (password !== 'admin123') {
+                        alert('Yanlış şifre! Ana sayfaya yönlendiriliyorsunuz.');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                    localStorage.setItem('isAdmin', 'true');
+                }
+            } catch (error) {
+                console.error('Admin kontrol hatası:', error);
+                // Hata durumunda şifre iste
+                const password = prompt('Admin şifresi gerekli:');
+                if (password !== 'admin123') {
+                    alert('Yanlış şifre! Ana sayfaya yönlendiriliyorsunuz.');
+                    window.location.href = 'index.html';
+                    return;
+                }
+                localStorage.setItem('isAdmin', 'true');
+            }
+        }, 2000); // 2 saniye bekle
+    </script>
+    <script src="js/auth-check.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f8f9fa;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 250px;
+            height: 100vh;
+            background: #2c3e50;
+            padding: 2rem;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+
+        .logo {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            color: #bdc3c7;
+            padding: 0.8rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .menu-item:hover,
+        .menu-item.active {
+            background: #34495e;
+            color: white;
+        }
+
+        .menu-item i {
+            width: 20px;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 2rem;
+            width: calc(100% - 250px);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+        }
+
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .admin-avatar {
+            width: 40px;
+            height: 40px;
+            background: #ff4b4b;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-card h3 {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            color: #2c3e50;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .stat-card .trend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .trend.up {
+            color: #27ae60;
+        }
+
+        .trend.down {
+            color: #c0392b;
+        }
+
+        .recent-orders {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .recent-orders h2 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .orders-table th,
+        .orders-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .orders-table th {
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .status {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .status.completed {
+            background: #e8f5e9;
+            color: #27ae60;
+        }
+
+        .status.pending {
+            background: #fff3e0;
+            color: #f39c12;
+        }
+
+        .status.cancelled {
+            background: #ffebee;
+            color: #c0392b;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+                padding: 1rem;
+            }
+
+            .logo span,
+            .menu-item span {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 70px;
+                width: calc(100% - 70px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <i class="fas fa-utensils"></i>
+            <span>Admin Panel</span>
+        </div>
+        
+        <a href="admin.html" class="menu-item active">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="admin-users.html" class="menu-item">
+            <i class="fas fa-users"></i>
+            <span>Kullanıcılar</span>
+        </a>
+        <a href="admin-orders.html" class="menu-item">
+            <i class="fas fa-shopping-bag"></i>
+            <span>Siparişler</span>
+        </a>
+        <a href="admin-menu.html" class="menu-item">
+            <i class="fas fa-hamburger"></i>
+            <span>Menü</span>
+        </a>
+        <a href="review.html" class="menu-item">
+            <i class="fas fa-star"></i>
+            <span>Yorumlar</span>
+        </a>
+        <a href="admin.html" class="menu-item">
+            <i class="fas fa-cog"></i>
+            <span>Ayarlar</span>
+        </a>
+        <a href="#" class="menu-item" id="signOut">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Çıkış Yap</span>
+        </a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>Dashboard</h1>
+            <div class="admin-info">
+                <span id="adminEmail">admin@example.com</span>
+                <div class="admin-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Toplam Sipariş</h3>
+                <div class="value">1,234</div>
+                <div class="trend up">
+                    <i class="fas fa-arrow-up"></i>
+                    12% geçen haftaya göre
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Toplam Gelir</h3>
+                <div class="value">₺45,678</div>
+                <div class="trend up">
+                    <i class="fas fa-arrow-up"></i>
+                    8% geçen haftaya göre
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Yeni Kullanıcılar</h3>
+                <div class="value">256</div>
+                <div class="trend down">
+                    <i class="fas fa-arrow-down"></i>
+                    3% geçen haftaya göre
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Ortalama Değerlendirme</h3>
+                <div class="value">4.8</div>
+                <div class="trend up">
+                    <i class="fas fa-arrow-up"></i>
+                    0.2 puan artış
+                </div>
+            </div>
+        </div>
+
+        <div class="recent-orders">
+            <h2>Son Siparişler</h2>
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Sipariş ID</th>
+                        <th>Müşteri</th>
+                        <th>Ürünler</th>
+                        <th>Toplam</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>#12345</td>
+                        <td>Ahmet Yılmaz</td>
+                        <td>2x Burger, 1x Pizza</td>
+                        <td>₺180</td>
+                        <td><span class="status completed">Tamamlandı</span></td>
+                    </tr>
+                    <tr>
+                        <td>#12344</td>
+                        <td>Mehmet Demir</td>
+                        <td>1x Pizza, 2x İçecek</td>
+                        <td>₺120</td>
+                        <td><span class="status pending">Hazırlanıyor</span></td>
+                    </tr>
+                    <tr>
+                        <td>#12343</td>
+                        <td>Ayşe Kaya</td>
+                        <td>3x Burger</td>
+                        <td>₺240</td>
+                        <td><span class="status cancelled">İptal Edildi</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Sipariş durumu metinleri
+        function getStatusText(status) {
+            const statusTexts = {
+                'pending': 'Bekliyor',
+                'preparing': 'Hazırlanıyor',
+                'delivering': 'Yolda',
+                'completed': 'Tamamlandı',
+                'cancelled': 'İptal Edildi'
+            };
+            return statusTexts[status] || status;
+        }
+
+        // Supabase bağlantısı
+        const supabase = window.supabase;
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Auth kontrolü
+                const { data: { session }, error: authError } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // Admin kontrolü
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('is_admin')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (!profile?.is_admin) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                // Admin email'ini göster
+                document.getElementById('adminEmail').textContent = session.user.email;
+
+                try {
+                    // İstatistikleri getir
+                    const { count: orderCount } = await supabase
+                        .from('orders')
+                        .select('*', { count: 'exact', head: true });
+
+                    const { data: completedOrders } = await supabase
+                        .from('orders')
+                        .select('total_amount')
+                        .eq('status', 'completed');
+
+                    const { count: newUserCount } = await supabase
+                        .from('profiles')
+                        .select('*', { count: 'exact', head: true })
+                        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+                    const { data: ratings } = await supabase
+                        .from('reviews')
+                        .select('rating');
+
+                    // İstatistikleri güncelle
+                    // Toplam sipariş
+                    document.querySelector('.stats-grid .stat-card:nth-child(1) .value').textContent = 
+                        orderCount || 0;
+
+                    // Toplam gelir
+                    const totalRevenue = completedOrders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+                    document.querySelector('.stats-grid .stat-card:nth-child(2) .value').textContent = 
+                        `₺${totalRevenue.toFixed(2)}`;
+
+                    // Yeni kullanıcılar
+                    document.querySelector('.stats-grid .stat-card:nth-child(3) .value').textContent = 
+                        newUserCount || 0;
+
+                    // Ortalama değerlendirme
+                    const avgRating = ratings?.length > 0 
+                        ? (ratings.reduce((sum, review) => sum + review.rating, 0) / ratings.length).toFixed(1)
+                        : '0.0';
+                    document.querySelector('.stats-grid .stat-card:nth-child(4) .value').textContent = avgRating;
+
+                    // Son siparişleri getir
+                    const { data: orders } = await supabase
+                        .from('orders')
+                        .select('id, total_amount, status, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(3);
+
+                    if (!orders) throw new Error('Siparişler yüklenemedi');
+
+                    // Sipariş tablosunu güncelle
+                    document.querySelector('.orders-table tbody').innerHTML = orders.map(order => `
+                        <tr>
+                            <td>#${order.id.slice(0, 8)}</td>
+                            <td>Müşteri</td>
+                            <td>Sipariş Detayları</td>
+                            <td>₺${Number(order.total_amount).toFixed(2)}</td>
+                            <td><span class="status ${order.status}">${getStatusText(order.status)}</span></td>
+                        </tr>
+                    `).join('');
+                } catch (error) {
+                    console.error('Veri yükleme hatası:', error);
+                    alert('Bilgiler yüklenirken bir hata oluştu.');
+                }
+
+
+                // Çıkış yapma butonu
+                document.getElementById('signOut').onclick = () => {
+                    localStorage.removeItem('isAdmin');
+                    window.location.href = 'index.html';
+                };
+
+                // Menü navigasyonu - sayfa sonunda
+                console.log('Menü navigasyonu ayarlanıyor...');
+
+            } catch (error) {
+                console.error('Veri yükleme hatası:', error);
+                alert('Bilgiler yüklenirken bir hata oluştu.');
+            }
+        });
+    </script>
+    
+    <script>
+        // Menü navigasyonu - ayrı script
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Menü navigasyon sistemi başlatılıyor...');
+            
+            // Tüm menü linklerini bul ve event listener ekle
+            const menuLinks = document.querySelectorAll('.sidebar .menu-item[href]');
+            console.log('Bulunan menü linkleri:', menuLinks.length);
+            
+            menuLinks.forEach((link, index) => {
+                const href = link.getAttribute('href');
+                console.log(`Link ${index}: ${href}`);
+                
+                link.addEventListener('click', function(e) {
+                    const targetHref = this.getAttribute('href');
+                    console.log('Tıklanan link:', targetHref);
+                    
+                    if (targetHref && targetHref !== '#' && targetHref !== window.location.pathname.split('/').pop()) {
+                        e.preventDefault();
+                        console.log('Yönlendiriliyor:', targetHref);
+                        window.location.href = targetHref;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
