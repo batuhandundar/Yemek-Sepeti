@@ -107,7 +107,7 @@ Yemek Sepeti/
 
 ---
 
-## 📝 Notlar
+
 
 
 
